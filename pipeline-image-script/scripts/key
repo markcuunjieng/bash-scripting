@@ -1,0 +1,43 @@
+#!/bin/bash
+#Author: Mark Cu
+
+Deploybot_Key="-----BEGIN OPENSSH PRIVATE KEY-----
+my key here
+-----END OPENSSH PRIVATE KEY-----
+"
+
+if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+    help
+    exit 0
+fi
+
+SSH=$1
+if [[ "${SSH}" == "" ]]
+then
+  echo "No Option specified or invalid option."
+  echo "Type -h or --help for more details."
+  exit 1
+fi
+shift
+
+if [[ "$PERMISSION" != "DEVOPS" ]]; then
+  echo "Unauthorized: You don't have permission to run this command! Please contact MarkCu Admin."
+  exit 1
+else
+    if [[ "$SSH" != "enable" ]]; then
+    echo "SSH key setting failed."
+    exit 1
+    else
+    export KEY="$Deploybot_Key"
+    git config --global user.email "marccuunjieng@gmail.com"
+    git config --global user.name "markcu"
+    mkdir -p ~/.ssh
+    echo "$KEY" > ~/.ssh/id_rsa
+    eval $(ssh-agent -s)
+    ssh-add <(echo "$KEY")
+    echo "$KEY" > ~/.ssh/id_rsa
+    echo "SSH Key is enabled!"
+    fi
+fi
+
+

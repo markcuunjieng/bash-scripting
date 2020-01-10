@@ -1,0 +1,39 @@
+#!/bin/bash
+
+PRIV_TOKEN=1234
+TOKEN=1234
+PID=1234
+
+trigger() {
+PIPELINE_NUM=`
+curl -k -X POST \
+-F token=$TOKEN \
+-F ref=release \
+https://gitlab.markcu.com/api/v4/projects/${PID}/trigger/pipeline | jq -r '.id'`
+
+echo "Pipeline # is "$PIPELINE_NUM
+YYYY_mm=`date '+%Y_%m'`
+echo "Log Date is "$YYYY_mm
+
+PIPELINE_STATUS=true
+
+while [ ! -z "$PIPELINE_STATUS" ]
+do
+PIPELINE_STATUS=$(curl -ks --header "PRIVATE-TOKEN:$PRIV_TOKEN" "https://gitlab.markcu.com/api/v4/projects/${PID}/pipelines/${PIPELINE_NUM}/jobs?scope[]=pending&scope[]=running" | jq -r '.[] | .id' | head -n 1)
+
+    logfile=/mnt/to/gitlab-ci/builds/${YYYY_mm}/${PID}/${PIPELINE_STATUS}.log
+    
+    while [ ! -f $logfile ]
+    do
+    sleep 0.1
+    done
+    
+    echo "Waiting response from Job ID $PIPELINE_STATUS..."
+    awk '/Job succeeded/{exit}1' < <(tail -f $logfile)
+    sleep 1
+
+done
+
+}
+
+trigger

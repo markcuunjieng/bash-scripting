@@ -1,0 +1,83 @@
+#!/usr/bin/bash
+#Author: Mark Cu
+
+# ANSIBLE CONFIG
+QA_HOST="https://ansible.markcu.com"
+QA_ANS_USER="myqauser"
+QA_ANS_PW="asdasda"
+PROD_HOST="https://ansible.markcu.com"
+PROD_ANS_USER="myproduser"
+PROD_ANS_PW="skdnsjds"
+act_no="1234567890"
+
+CI_COMMIT_REF_NAME=$CI_COMMIT_REF_NAME
+
+# HELP.
+if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+  echo '======================='
+  echo '| AWS Creds By Mark |'
+  echo '======================='
+  echo -e '\nUsage: cicd cred <environment>\n\n Options:\n QA\t=\tFor AWS QA Credentials\n PROD\t=\tFor AWS Production Credentials\n\n e.g cicd creds QA'
+  exit 0
+fi
+
+if [[ "$PERMISSION" != "DEVOPS" ]]; then
+  echo "Unauthorized: You don't have permission to run this command! Please contact DevOps Admin."
+  exit 1
+else
+  ENV=$1
+  if [[ "${ENV}" == "" || "${ENV}" != "DEV" && "${ENV}" != "QA" && "${ENV}" != "STG" && "${ENV}" != "PROD" ]]
+  then
+    echo "No environment specified or invalid option."
+    echo "Type -h or --help for more details."
+    exit 1
+  fi
+  shift
+
+  if [[ "$CI_COMMIT_REF_NAME" =~ ^(release|prod|production|master)$ && "$ENV" == "PROD" || "$CI_COMMIT_REF_NAME" == v* && "$ENV" == "PROD" ]]; then
+    # Replace Space with Underscore
+    user="${GITLAB_USER_NAME// /_}"
+    session_name="${user}@${CI_PROJECT_PATH_SLUG}"
+    echo "Loading PROD credentials"; sleep 3
+    tower-cli config host $PROD_HOST && tower-cli config username $PROD_ANS_USER && tower-cli config password $PROD_ANS_PW \
+    && CRED=(`aws sts assume-role --role-arn arn:aws:iam::${act_no}:role/gitlab-runner-cross-account --role-session-name $session_name --query [Credentials.AccessKeyId,Credentials.SecretAccessKey,Credentials.SessionToken] --output text` ) \
+    && echo "Loaded Successfully!" || echo "Failed to Load Credentails"
+    unset AWS_SECURITY_TOKEN
+    export AWS_ACCESS_KEY_ID=${CRED[0]}
+    export AWS_SECRET_ACCESS_KEY=${CRED[1]}
+    export AWS_SESSION_TOKEN=${CRED[2]}
+    export AWS_SECURITY_TOKEN=${CRED[2]}
+    unset ENV
+    export ENV=prod
+  elif [[ "$CI_COMMIT_REF_NAME" =~ ^(stage|release|prod|production|master)$ && "$ENV" == "STG" || "$CI_COMMIT_REF_NAME" == v* && "$ENV" == "STG" ]]; then
+    # Replace Space with Underscore
+    user="${GITLAB_USER_NAME// /_}"
+    session_name="${user}@${CI_PROJECT_PATH_SLUG}"
+    echo "Loading STG credentials"; sleep 3
+    tower-cli config host $PROD_HOST && tower-cli config username $PROD_ANS_USER && tower-cli config password $PROD_ANS_PW \
+    && CRED=(`aws sts assume-role --role-arn arn:aws:iam::${act_no}:role/gitlab-runner-cross-account --role-session-name $session_name --query [Credentials.AccessKeyId,Credentials.SecretAccessKey,Credentials.SessionToken] --output text` ) \
+    && echo "Loaded Successfully!" || echo "Failed to Load Credentails"
+    unset AWS_SECURITY_TOKEN
+    export AWS_ACCESS_KEY_ID=${CRED[0]}
+    export AWS_SECRET_ACCESS_KEY=${CRED[1]}
+    export AWS_SESSION_TOKEN=${CRED[2]}
+    export AWS_SECURITY_TOKEN=${CRED[2]}
+    unset ENV
+    export ENV=stg
+  elif [[ "$CI_COMMIT_REF_NAME" =~ ^(release|qa|QA|master|cicd)$ && "$ENV" == "QA" || "$CI_COMMIT_REF_NAME" =~ ^(v|fix|hotfix)$* && "$ENV" == "QA" ]]; then
+    echo "Loading QA credentials"; sleep 3
+    tower-cli config host $QA_HOST && tower-cli config username $QA_ANS_USER && tower-cli config password $QA_ANS_PW \
+    && echo "Loaded Successfully!" || echo "Failed to Load Credentails"
+    unset ENV
+    export ENV=qa
+  elif [[ "$CI_COMMIT_REF_NAME" =~ ^(release|dev|development|master|cicd)$ && "$ENV" == "DEV" || "$CI_COMMIT_REF_NAME" == v* && "$ENV" == "DEV" ]]; then
+    echo "Loading QA credentials"; sleep 3
+    tower-cli config host $QA_HOST && tower-cli config username $QA_ANS_USER && tower-cli config password $QA_ANS_PW \
+    && echo "Loaded Successfully!" || echo "Failed to Load Credentails"
+    unset ENV
+    export ENV=dev
+  else
+    echo "Unknown Branch: Unable to run the script with branch/tag $CI_COMMIT_REF_NAME! Please contact Mark Cu."
+    exit 1
+  fi
+fi

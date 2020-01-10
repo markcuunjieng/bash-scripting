@@ -1,0 +1,26 @@
+#!/bin/bash
+
+# Exit on error
+set -e
+
+Namespace=https://gitlab.markcu.com/${CI_PROJECT_NAMESPACE}
+
+Repository=(
+myqa
+myprod
+mark.cu
+)
+
+wl() {
+    local seeking=$1; shift
+    local in=1
+    for element; do
+        if [[ $element == $seeking ]]; then
+            in=0
+            break
+        fi
+    done
+    return $in
+}
+
+wl $CI_PROJECT_NAMESPACE "${Repository[@]}" && echo "$Namespace repository verified!" || ( echo "Unknown Repository $Namespace, please contact DevOps Admin." && exit 1 )

@@ -1,0 +1,93 @@
+#!/bin/bash
+#Author: Mark Cu
+
+help() {
+cat << "EOF"
+████████████████████████████████████████████████████████████████████
+                                                                   
+                                                                   
+       ╔═╗  ╦  ╔═╗  ╔╦╗    ╔═╗  ╔═╗  ╔╦╗  ╔╦╗  ╔═╗  ╔╗╔  ╔╦╗       
+       ║    ║  ║     ║║    ║    ║ ║  ║║║  ║║║  ╠═╣  ║║║   ║║       
+       ╚═╝  ╩  ╚═╝  ═╩╝    ╚═╝  ╚═╝  ╩ ╩  ╩ ╩  ╩ ╩  ╝╚╝  ═╩╝       
+                                                                   
+                           Version 0.9                             
+           You MUST have permission to use this command.           
+                 Maintained & Developed by DevOps                        
+                                                                   
+                                                                   
+████████████████████████████████████████████████████████████████████
+EOF
+
+  echo -e '\nUsage: cicd <command> <option>\n'
+  echo -e 'Command:'
+  echo -e ' cred\t\t=\tLoad AWS Credentials [DEV, QA, STG & PROD]'
+  echo -e ' deploy\t\t=\tTrigger Ansible Deployment [QA & PROD]'
+  echo -e ' sendlog\t=\tEmail CI Job Log'
+  echo -e ' mr\t\t=\tCreate Merge Request Current Branch to Master Branch'
+  echo -e ' notif/notify\t\t=\tSend Notification to MS Teams Remote Pipeline/Single Pipeline'
+  echo -e ' pipeline\t=\tTrigger CICD Pipeline'
+  echo -e '\n For more options: cicd <command> -h or --help'
+}
+
+# HELP.
+help_old() {
+  echo "###################################################################"
+  echo "#                                                                 #"
+  echo "#                                                                 #"
+  echo "#                        C I / C D  C M D                         #"
+  echo "#                                                                 #"
+  echo "#                           Version 0.9                           #"
+  echo "#           You MUST have permission to use this script.          #"
+  echo "#                       Maintained by DevOps                      #"
+  echo "#                                                                 #"
+  echo "#                                                                 #"
+  echo "###################################################################"
+  echo -e '\nUsage: cicd <command> <option>\n'
+  echo -e 'Command:'
+  echo -e ' cred\t\t=\tUse AWS Credentials for DEV, QA, STG & PROD'
+  echo -e ' deploy\t\t=\tTrigger Ansible Deployment'
+  echo -e ' sendlog\t=\tSend Log to Email using SES API Endpoint'
+  echo -e ' mr\t\t=\tCreate Merge Request Current Branch to Master Branch'
+  echo -e ' notif or notify\t\t=\tSend Notification on MS Teams Channel'
+  echo -e ' pipeline\t=\tTrigger DevOps CICD Pipeline'
+  echo -e '\n For more options: cicd <command> -h or --help'
+}
+
+if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+    help
+    exit 0
+fi
+
+# check for number of arguments
+#if [ $# -lt 4 ]
+
+case "$1" in
+
+cred )
+    source cred $2
+    ;;
+pipeline )
+    pipeline $2 $3
+    ;;
+notif )
+    notif $2 $3
+    ;;
+notify )
+    notify $2 $3
+    ;;
+deploy )
+    source deploy $2 $3
+    ;;
+sendlog )
+    python3.7 /usr/local/bin/sendlog.py $2
+    ;; 
+mr )
+    mr $2 $3
+    ;;
+key )
+    source key $2
+    ;;
+*)  help
+    exit 1
+   ;;
+esac

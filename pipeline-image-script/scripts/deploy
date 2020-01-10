@@ -1,0 +1,65 @@
+#!/usr/bin/bash
+#Author: Mark Cu
+
+# ANSIBLE CREDENTIALS
+QA_HOST="https://ansible.markcu.com"
+QA_ANS_USER="myqauser"
+QA_ANS_PW="asdasda"
+PROD_HOST="https://ansible.markcu.com"
+PROD_ANS_USER="myproduser"
+PROD_ANS_PW="skdnsjds"
+
+export CI_COMMIT_REF_NAME=$CI_COMMIT_REF_NAME
+
+# HELP.
+if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+  echo '============================='
+  echo '| Ansible Deploy By Mark Cu |'
+  echo '============================='
+  echo -e '\nUsage: cicd deploy <environment> <job template>\n\n Options:\n QA | PROD\t=\tFor AWS QA/PROD Environment\n JOB TEMPLATE\t=\tAnsible Job Template ID\n\n e.g cicd deploy QA 123'
+  exit 0
+fi
+
+if [[ "$PERMISSION" != "DEVOPS" ]]; then
+  echo "Unauthorized: You don't have permission to run this command! Please contact MarkCu Admin."
+  exit 1
+
+else
+
+  ENV=$1
+  if [[ "${ENV}" == "" || "${ENV}" != "QA" && "${ENV}" != "PROD" ]]
+  then
+    echo "No environment specified or invalid option."
+    echo "Type -h or --help for more details."
+    exit 1
+  fi
+  shift
+
+  JT=$1
+  if [[ "${JT}" == "" || ! "${JT}" =~ ^[0-9]{2} ]]
+  then
+    echo "No job template specified or invalid option."
+    echo "Type -h or --help for more details."
+    exit 1
+  fi
+  shift
+
+  if [[ "$CI_COMMIT_REF_NAME" =~ ^(release|prod|production)$ && "$ENV" == "PROD" ]]; then
+    echo "Deploying to PROD.."; sleep 3
+    tower-cli job launch --job-template="$JT" -v \
+        -u '${PROD_ANS_USER}' \ 
+        -p '${PROD_ANS_PW}' \
+        -h '${PROD_ANS_URL}' \
+        --wait --insecure
+  elif [[ "$CI_COMMIT_REF_NAME" =~ ^(release|qa|QA)$ && "$ENV" == "QA" ]]; then
+    echo "Deploying to QA.."; sleep 3
+    tower-cli job launch --job-template="$JT" -v \
+        -u '${QA_ANS_USER}' \ 
+        -p '${QA_ANS_PW}' \
+        -h '${QA_ANS_URL}' \
+        --wait --insecure
+  else
+    echo "Unknown Branch: Unable to run the script with branch/tag $CI_COMMIT_REF_NAME! Please contact MarkCu Admin."
+    exit 1
+  fi
+fi

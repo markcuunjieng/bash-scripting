@@ -1,0 +1,160 @@
+#!/bin/bash
+#Author: Mark Cu
+
+export WEBHOOK_URL=$MSTEAMS
+
+WEBHOOK_URL=$1
+if [[ "${WEBHOOK_URL}" == "" ]]
+then
+  echo "No webhook url specified or invalid option."
+  echo "Type -h or --help for more details."
+  exit 1
+fi
+shift
+
+export EMAIL=marccuunjieng@gmail.com
+export PREV_SHA=`cat prev_sha`
+export LATEST_SHA=`cat latest_sha`
+export prev_apache=`cat prev_patch.info |sed -n -e 2p`
+export prev_php=`cat prev_patch.info |sed -n -e 1p`
+export updated_apache=`cat updated_patch.info |sed -n -e 2p`
+export updated_php=`cat updated_patch.info |sed -n -e 1p`
+export application=$APP
+
+if [ "$patch" == "true" ]; then
+NOTIF=$(cat <<EOF
+{
+    "@type": "MessageCard",
+    "@context": "http://schema.org/extensions",
+    "themeColor": "F25EOE",
+    "summary": "Patcher Scheduler",
+    "sections": [{
+        "title": "**Scheduled Patch:** New updates available.",
+        "activityTitle": "![TestImage](https://47a92947.ngrok.io/Content/Images/default.png)New updates have been applied.",
+        "activitySubtitle": "Image built successfully in [${CI_PROJECT_NAMESPACE}](${CI_JOB_URL})",
+        "activityImage": "https://en.gravatar.com/userimage/158343447/cfee781c49ecb70c273015f425c6b768.png",
+        "facts": [{
+            "name": "Date",
+            "value": "$(date)"
+        }, {
+            "name": "Application Name",
+            "value": "${CI_PROJECT_NAME^^}"
+        }, {
+            "name": "Dockerfile",
+            "value": "$application"
+        }, {
+            "name": "Updated Php/Node",
+            "value": "$updated_php"
+        }, {
+            "name": "Updated Apache",
+            "value": "$updated_apache"
+        }, {
+            "name": "Image Sha",
+            "value": "$LATEST_SHA"
+        }, {
+            "name": "Previous Php/Node",
+            "value": "$prev_php"
+        }, {
+            "name": "Previous Apache",
+            "value": "$prev_apache"
+        }, {
+            "name": "Previous Image Sha",
+            "value": "$PREV_SHA"
+        }],
+        "markdown": true
+    }],
+    "potentialAction": [{
+        "@type": "ActionCard",
+        "name": "View",
+        "inputs": [{
+            "@type": "MultichoiceInput",
+            "id": "view",
+            "title": "Select View",
+            "isMultiSelect": "false",
+            "choices": [{
+                "display": "Job",
+                "value": "1"
+            }, {
+                "display": "Repository",
+                "value": "2"
+            }]
+        }],
+        "actions": [{
+            "@type": "HttpPOST",
+            "name": "Open",
+            "target": "$CI_JOB_URL"
+        }]
+    }, {
+        "@type": "ActionCard",
+        "name": "Action",
+        "inputs": [{
+            "@type": "MultichoiceInput",
+            "id": "list",
+            "title": "Select an action",
+            "isMultiSelect": "false",
+            "choices": [{
+                "display": "Re-run",
+                "value": "1"
+            }, {
+                "display": "Rollback",
+                "value": "2"
+            }]
+        }],
+        "actions": [{
+            "@type": "HttpPOST",
+            "name": "Ok",
+            "target": "http://..."
+        }]
+    }]
+}
+EOF
+)
+elif [ "$patch" == "false" ]; then 
+NOTIF=$(cat <<EOF
+{
+    "@type": "MessageCard",
+    "@context": "http://schema.org/extensions",
+    "themeColor": "F25EOE",
+    "summary": "Patcher Scheduler",
+    "sections": [{
+        "title": "**Scheduled Patch:** No updates available.",
+        "activityTitle": "![TestImage](https://47a92947.ngrok.io/Content/Images/default.png)No changes to apply.",
+        "activitySubtitle": "Image built successfully in [${CI_PROJECT_NAMESPACE}]($CI_JOB_URL)",
+        "activityImage": "https://en.gravatar.com/userimage/158343447/cfee781c49ecb70c273015f425c6b768.png",
+        "facts": [{
+            "name": "Date",
+            "value": "$(date)"
+        }, {
+            "name": "Application Name",
+            "value": "${CI_PROJECT_NAME^^}"
+        }, {
+            "name": "Dockerfile",
+            "value": "$application"
+        }, {
+            "name": "Current Php/Node",
+            "value": "$updated_php"
+        }, {
+            "name": "Current Apache",
+            "value": "$updated_apache"
+        }, {
+            "name": "Image Sha",
+            "value": "$LATEST_SHA"
+        }],
+        "markdown": true
+    }],
+    "potentialAction": [{
+        "@type": "ActionCard",
+        "name": "View in Gitlab",
+        "actions": [{
+            "@type": "HttpPOST",
+            "target": "$CI_JOB_URL"
+        }]
+    }]
+}
+EOF
+)
+fi
+
+# Post to Microsoft Teams.
+curl -H "Content-Type: application/json" -d "${NOTIF}" "${WEBHOOK_URL}"
+

@@ -1,0 +1,47 @@
+#!/bin/bash
+
+if [[ "$1" == "-h" || "$1" == "--help" ]]
+then
+  echo '===================='
+  echo '| Tenable Scanning |'
+  echo '===================='
+  echo -e '\nUsage: tenable-scan run\n'
+  exit 0
+fi
+
+if [[ "${APP}" == "" ]]
+then
+  echo "No application found."
+  exit 1
+elif [[ "${TAG}" == "" ]]
+then
+  echo "No image tag found."
+  exit 1
+fi
+
+if [[ "$PERMISSION" != "DEVOPS" ]]; then
+  echo "Unauthorized: You don't have permission to run this command! Please contact DevOps Admin."
+  exit 1
+else
+
+STATUS=$1
+if [[ "${STATUS}" != "run" ]]
+then
+  echo "No argument specified or invalid option."
+  echo "Type -h or --help for more details."
+  exit 1
+fi
+shift
+
+docker login -u $TENABLE_USER -p $TENABLE_USER_PW tenableio-docker-consec-local.jfrog.io
+docker pull tenableio-docker-consec-local.jfrog.io/cs-scanner:latest
+docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
+docker pull $CI_REGISTRY_IMAGE/$APP:$TAG
+docker save $CI_REGISTRY_IMAGE/$APP:$TAG | docker run \
+-e TENABLE_ACCESS_KEY=$TENABLE_ACCESS_KEY \
+-e TENABLE_SECRET_KEY=$TENABLE_SECRET_KEY \
+-e IMPORT_REPO_NAME=$CI_REGISTRY_IMAGE/$APP \
+-i tenableio-docker-consec-local.jfrog.io/cs-scanner:latest inspect-image $APP:$TAG
+sleep 20
+
+fi

@@ -1,0 +1,53 @@
+#!/bin/bash
+#Author: Mark Cu
+
+if [[ "$1" == "-h" || "$1" == "--help" ]]
+then
+  echo '==============='
+  echo '| Config Mgmt |'
+  echo '==============='
+  echo -e '\nUsage: config enable\n'
+  exit 0
+fi
+
+if [[ "${APP}" == "" ]]
+then
+  echo "No application found."
+  exit 1
+elif [[ "${CONFIG}" == "" ]]
+then
+  echo "No config found."
+  exit 1
+fi
+
+if [[ "$PERMISSION" != "DEVOPS" ]]; then
+  echo "Unauthorized: You don't have permission to run this command! Please contact DevOps Admin."
+  exit 1
+else
+
+STATUS=$1
+if [[ "${STATUS}" != "enable" ]]
+then
+  echo "No argument specified or invalid option."
+  echo "Type -h or --help for more details."
+  exit 1
+fi
+shift
+
+git clone $CONFIG/$APP.git .config
+if [[ "${CI_JOB_STAGE}" == "deploy"* ]]
+then
+  if [[ -z "${!APP}" ]]; then
+    #FOR RANCHER DEPLOYMENT
+    block 2
+    echo -e "[INFO] Deployment Details:\n SERVICE_NAME\t = \t${APP}\n CLUSTER\t = \t$CLUSTER\n APP_CONFIG\t = \tconfig.$ENV\n IMAGE\t\t = \t$ECR/${APP}\n BUILD_TAG\t = \t$ENV-$TAG"
+    block 2
+  else
+    #FOR ECS DEPLOYMENT
+    block 2
+    echo -e "[INFO] Deployment Details:\n SERVICE_NAME\t = \t${!APP}\n CLUSTER\t = \t$CLUSTER\n APP_CONFIG\t = \tconfig.$ENV\n IMAGE\t\t = \t$ECR/${!APP}\n BUILD_TAG\t = \t$ENV-$TAG"
+    block 2
+  fi
+fi
+
+fi

@@ -1,0 +1,165 @@
+#========================================================
+# Docker Version: 18.06.1-ce
+# Python Verson: 3.7
+# Pip Version: 18.1
+# AWS CLI: 1.16.74 
+# ECS CLI: 1.12.1
+# ECS Deploy: 1.6.0
+# Tower CLI 3.3.0
+# Git Version: 2.17.2
+# Go lang Version: 1.9
+# Racher CLI 2.2.0
+# Rancher compose 0.12.5
+# Nodejs 10
+# NPM 6.9
+#========================================================
+
+FROM amazonlinux:2
+
+#--------------------------------------------------------
+# UPDATE SYSTEM
+#--------------------------------------------------------
+
+RUN yum update -y
+
+#--------------------------------------------------------
+# INSTALL DEVTOOLS PACKAGE
+#--------------------------------------------------------
+
+RUN     yum groupinstall -y "Development Tools"
+
+#--------------------------------------------------------
+# INSTALL PYTHON & PIP
+#--------------------------------------------------------
+
+RUN yum install -y python3-pip python3 -y
+
+#--------------------------------------------------------
+# INSTALL AWS CLI
+#--------------------------------------------------------
+
+RUN pip-3.7 install awscli ecs-deploy
+
+#--------------------------------------------------------
+# INSTALL DOCKER
+#--------------------------------------------------------
+
+RUN amazon-linux-extras install docker -y
+
+#--------------------------------------------------------
+# INSTALL OPENSSL
+#--------------------------------------------------------
+
+RUN yum install openssl -y
+
+#--------------------------------------------------------
+# INSTALL TOWER CLI
+#--------------------------------------------------------
+
+RUN pip-3.7 install ansible-tower-cli==3.1.8
+
+#--------------------------------------------------------
+# INSTALL GIT
+#--------------------------------------------------------
+
+RUN yum install git wget tar gzip -y
+
+#--------------------------------------------------------
+# INSTALL GO LANG
+#--------------------------------------------------------
+
+RUN yum install golang -y
+RUN go get -u github.com/golang/dep/cmd/dep
+
+#--------------------------------------------------------
+# INSTALL ECS CLI
+#--------------------------------------------------------
+
+RUN curl -o /usr/local/bin/ecs-cli https://s3.amazonaws.com/amazon-ecs-cli/ecs-cli-linux-amd64-latest \
+    && chmod +x /usr/local/bin/ecs-cli \
+    && ecs-cli --version
+
+#--------------------------------------------------------
+# INSTALL NODEJS
+#--------------------------------------------------------
+
+RUN curl --silent --location https://rpm.nodesource.com/setup_10.x | bash - \
+    && yum install -y nodejs \
+    && npm install -g typescript gulp grunt yarn
+    
+#--------------------------------------------------------
+# INSTALL DEPENDENCY FOR MMS API
+#--------------------------------------------------------
+
+RUN yum install -y tar bzip2 gzip zip
+
+#--------------------------------------------------------
+# INSTALL DEPENDENCY FOR MMS CLIENT
+#--------------------------------------------------------
+
+RUN npm install -g @angular/cli 
+
+RUN printf "[google-chrome]\nname=google-chrome\nbaseurl=http://dl.google.com/linux/chrome/rpm/stable/\$basearch\nenabled=1\ngpgcheck=1\ngpgkey=https://dl-ssl.google.com/linux/linux_signing_key.pub" >> /etc/yum.repos.d/google-chrome.repo \
+    && yum -y install google-chrome-stable
+
+#--------------------------------------------------------
+# INSTALL BOTO3, ETC
+#--------------------------------------------------------
+
+RUN pip-3.7 install boto3 \
+    && pip-3.7 install json2html \
+    && pip-3.7 install json2table \
+    && pip-3.7 install DateTime \
+    && pip-3.7 install simplejson
+
+#--------------------------------------------------------
+# INSTALL RANCHER CLI
+#--------------------------------------------------------
+
+RUN wget https://github.com/rancher/cli/releases/download/v0.6.7/rancher-darwin-amd64-v0.6.7.tar.gz && \
+    tar zxvf rancher-darwin-amd64-v0.6.7.tar.gz && \
+    mv rancher-v0.6.7/rancher /usr/bin/rancher
+    
+RUN wget https://github.com/rancher/rancher-compose/releases/download/v0.12.5/rancher-compose-linux-amd64-v0.12.5.tar.gz && \ 
+    tar zxvf rancher-compose-linux-amd64-v0.12.5.tar.gz && \
+    mv rancher-compose-v0.12.5/rancher-compose /usr/bin/rancher-compose
+
+#--------------------------------------------------------
+# INSTALL SNYK
+#--------------------------------------------------------
+
+RUN npm install -g snyk
+
+#--------------------------------------------------------
+# SSH KEY CONFIGURATION
+#--------------------------------------------------------
+
+RUN mkdir -p ~/.ssh \
+    && echo "$key" >> ~/.ssh/id_rsa \
+    && chmod 600 ~/.ssh/id_rsa \
+    && echo "StrictHostKeyChecking no" >> /etc/ssh/ssh_config
+
+#--------------------------------------------------------
+# COPY SCRIPTS AND SET PERMISSIONS
+#--------------------------------------------------------
+
+COPY scripts /tmp/scripts
+RUN ls -la /tmp/scripts
+RUN cd /tmp/scripts \
+    && sed -i -e 's/\r$//' * \
+    && chmod +x * \
+    && cp * /usr/local/bin/
+
+#--------------------------------------------------------
+# SET ENVIRONMENT VARIABLES
+#--------------------------------------------------------
+
+ENV TENABLE_ACCESS_KEY=1234 \
+    TENABLE_SECRET_KEY=1234 \
+    TENABLE_USER=pubread \
+    TENABLE_USER_PW=1234 \
+    SNYK_TOKEN=1234 \
+    SNYK_ORG_BASE=1234 \
+    SNYK_ORG_APP=1234
+
+RUN cicd -h

@@ -1,0 +1,31 @@
+#/bin/bash
+
+set -a
+
+HOST=http://rancher.markcu.com
+
+if [[ "$PERMISSION" != "DEVOPS" ]]; then
+  echo "Unauthorized: You don't have permission to run this command! Please contact MarkCu Admin."
+  exit 1
+fi
+
+common() {
+	export RANCHER_URL=$HOST
+        export RANCHER_ACCESS_KEY=1234
+        export RANCHER_SECRET_KEY=1234
+}
+
+my-qa() {
+	export RANCHER_URL=$HOST
+	export RANCHER_ACCESS_KEY=1234
+	export RANCHER_SECRET_KEY=1234
+}
+
+my-prod() {
+        export RANCHER_URL=$HOST
+        export RANCHER_ACCESS_KEY=1234
+        export RANCHER_SECRET_KEY=1234
+}
+
+export -f my-qa
+export -f my-prod

@@ -1,0 +1,207 @@
+#!/bin/bash
+#Author: Mark Cu
+
+export TEXT=$( echo ${MESSAGE} | sed 's/"/\"/g' | sed "s/'/\'/g" )
+BUILD_TAG=${ENV}-${TAG}
+
+if [ -z "$ENV" ]; then BUILD_TAG=${TAG}; fi
+
+# HELP.
+if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+  echo '===================================='
+  echo '| MS Teams Notification By Mark Cu |'
+  echo '===================================='
+  echo -e '\nUsage: cicd notif <webhook_url>\n\n Options:\n WEBHOOK URL\t=\tMS Teams Webhook\n\n e.g cicd notif https://outlook.office.com/webhook/1234'
+  exit 0
+fi
+
+if [[ "$PERMISSION" != "DEVOPS" ]]; then
+  echo "Unauthorized: You don't have permission to run this command! Please contact MarkCu Admin."
+  exit 1
+else
+
+WEBHOOK_URL=$1
+if [[ "${WEBHOOK_URL}" == "" ]]
+then
+  echo "No webhook url specified or invalid option."
+  echo "Type -h or --help for more details."
+  exit 1
+fi
+shift
+
+test_url=`curl -s --head $WEBHOOK_URL | head -1 | awk '{print $2}'`
+if [[ ! "$test_url" == "200" ]]
+then echo "[ERROR] MSTeams notification failed! Please check webhook url if correct."
+exit 0;
+fi
+
+if [[ "${CI_JOB_MANUAL}" == "true" ]]
+then
+    if [[ "${CI_JOB_STAGE}" == "deploy_QA" ]]
+    then
+    TRIGGER="Deployment of ${APPLICATION}-${TAG} to QA has started.."
+    BY=${TRIGGERED_BY}
+    EM=${EMAIL}
+
+    elif [[ "${CI_JOB_STAGE}" == "deploy_STG" ]]
+    then
+    TRIGGER="Deployment of ${APPLICATION}-${TAG} to STG has started.."
+    BY=${TRIGGERED_BY}
+    EM=${EMAIL}
+
+    elif [[ "${CI_JOB_STAGE}" == "deploy_PROD" ]]
+    then
+    TRIGGER="Deployment of ${APPLICATION}-${TAG} to PROD has started.."
+    BY=${TRIGGERED_BY}
+    EM=${EMAIL}
+    
+    elif [[ "${CI_JOB_STAGE}" == "build" ]]
+    then
+    TRIGGER="Manual Trigger Build"
+    BY=${TRIGGERED_BY}
+    EM=${EMAIL}
+    
+    else
+    TRIGGER="Manual Trigger Job $CI_JOB_NAME"
+    BY=${TRIGGERED_BY}
+    EM=${EMAIL}
+    fi
+else
+    if [[ "${CI_JOB_STAGE}" == "deploy_QA" ]]
+    then
+    TRIGGER="Deployment of ${APPLICATION}-${TAG} to QA has started.."
+    BY=${TRIGGERED_BY}
+    EM=${EMAIL}
+
+    elif [[ "${CI_JOB_STAGE}" == "deploy_STG" ]]
+    then
+    TRIGGER="Deployment of ${APPLICATION}-${TAG} to STG has started.."
+    BY=${TRIGGERED_BY}
+    EM=${EMAIL}
+
+    elif [[ "${CI_JOB_STAGE}" == "deploy_PROD" ]]
+    then
+    TRIGGER="Deployment of ${APPLICATION}-${TAG} to PROD has started.."
+    BY=${TRIGGERED_BY}
+    EM=${EMAIL}
+    
+    elif [[ "${CI_JOB_STAGE}" == "build" ]]
+    then
+    TRIGGER="Auto Trigger Build"
+    BY=${TRIGGERED_BY}
+    EM=${EMAIL}
+    
+    else
+    TRIGGER="Auto Trigger Job $CI_JOB_NAME"
+    BY=${TRIGGERED_BY}
+    EM=${EMAIL}
+    fi
+fi
+
+NOTIF=$(cat <<EOF
+{
+    "@type": "MessageCard",
+    "@context": "http://schema.org/extensions",
+    "themeColor": "0076D7",
+    "summary": "$BY Triggered the Pipeline",
+    "sections": [{
+        "title": "**$TRIGGER**",
+        "activityTitle": "![TestImage](https://47a92947.ngrok.io/Content/Images/default.png)by $BY",
+        "activitySubtitle": "${CANDIDATE,,} in [$CI_PROJECT_NAME]($CI_PIPELINE_URL)",
+        "activityImage": "https://en.gravatar.com/userimage/158343447/cfee781c49ecb70c273015f425c6b768.png",
+        "facts": [{
+            "name": "Date",
+            "value": "$(date)"
+        }, {
+            "name": "Application Name",
+            "value": "${APPLICATION^^}"
+        }, {
+            "name": "Triggered By",
+            "value": "$BY"
+        }, {
+            "name": "Email",
+            "value": "$EM"
+        }, {
+            "name": "Branch",
+            "value": "$BRANCH"
+        }, {
+            "name": "Release Tag",
+            "value": "$TAG"
+        }, {
+            "name": "Previous Tag",
+            "value": "$PREVIOUS_TAG"
+        }, {
+            "name": "Build Tag",
+            "value": "$BUILD_TAG"
+        }, {
+            "name": "Commit Sha",
+            "value": "$COMMIT_SHA"
+        }, {
+            "name": "Commit Message",
+            "value": "${TEXT}"
+        }],
+        "markdown": true
+    }],
+    "potentialAction": [{
+        "@type": "ActionCard",
+        "name": "View",
+        "inputs": [{
+            "@type": "MultichoiceInput",
+            "id": "view",
+            "title": "Select View",
+            "isMultiSelect": "false",
+            "choices": [{
+                "display": "Job",
+                "value": "1"
+            }, {
+                "display": "Jira Ticket",
+                "value": "2"
+            }]
+        }],
+        "actions": [{
+            "@type": "HttpPOST",
+            "name": "Open",
+            "target": "$CI_JOB_URL"
+        }]
+    }, {
+        "@type": "ActionCard",
+        "name": "Set Schedule",
+        "inputs": [{
+            "@type": "DateInput",
+            "id": "dueDate",
+            "title": "Enter a due date for this task"
+        }],
+        "actions": [{
+            "@type": "HttpPOST",
+            "name": "Save",
+            "target": "http://..."
+        }]
+    }, {
+        "@type": "ActionCard",
+        "name": "Action",
+        "inputs": [{
+            "@type": "MultichoiceInput",
+            "id": "select",
+            "title": "Select an Action",
+            "isMultiSelect": "false",
+            "choices": [{
+                "display": "Retry",
+                "value": "1"
+            }, {
+                "display": "Rollback",
+                "value": "2"
+            }]
+        }],
+        "actions": [{
+            "@type": "HttpPOST",
+            "name": "Ok",
+            "target": "http://..."
+        }]
+    }]
+}
+EOF
+)
+
+# Post to Microsoft Teams.
+curl -H "Content-Type: application/json" -d "${NOTIF}" "${WEBHOOK_URL}"
+fi

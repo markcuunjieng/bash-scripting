@@ -1,0 +1,61 @@
+#!/bin/bash
+#Author: Mark Cu
+
+TOKEN=$TOKEN
+
+# HELP.
+if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+  echo '==========================='
+  echo '| Merge Request By DevOps |'
+  echo '==========================='
+  echo -e '\nUsage: cicd mr <project_id> <token> <target_branch>\n\n Options:\n PROJECT ID\t=\tGitlab Project ID\n TOKEN\t\t=\tGitlab Token\n TARGET\t\t=\tTarget Branch\n\n e.g cicd mr 101 xxxxxxxx release'
+  exit 0
+fi
+
+if [[ "$PERMISSION" != "DEVOPS" ]]; then
+  echo "Unauthorized: You don't have permission to run this command! Please contact MarkCu Admin."
+  exit 1
+else
+PID=$1
+if [[ "${PID}" == "" ]]
+then
+  echo "No project ID specified or invalid option."
+  echo "Type -h or --help for more details."
+  exit 1
+fi
+shift
+
+TOKEN=$1
+if [[ "${TOKEN}" == "" ]]
+then
+  echo "No Token specified or invalid option."
+  echo "Type -h or --help for more details."
+  exit 1
+fi
+shift
+
+TARGET_BRANCH=$1
+if [[ "${TOKEN}" == "" ]]
+then
+  echo "No Target Branch specified or invalid option."
+  echo "Type -h or --help for more details."
+  exit 1
+fi
+shift
+
+mr=$(cat <<EOF
+{
+     "private_token":"$TOKEN",
+     "title":"Pipeline Succeeded at $CI_PROJECT_PATH",
+     "source_branch":"$BRANCH",
+     "target_branch":"$TARGET_BRANCH"
+     } 
+EOF
+)
+echo "$mr"
+curl -k -X POST \
+     -H 'Content-Type:application/json' \
+     -d "$mr" \
+     https://gitlab.markcu.com/api/v4/projects/${PID}/merge_requests
+
+fi

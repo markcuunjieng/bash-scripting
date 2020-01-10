@@ -38,10 +38,10 @@ cd script_tool/ebs_snapshot_script
 ```
 
 ### _Run the script depending on your needs:_ 
-- **Basic Mode (ebs-auto alone)**
+- **Basic Mode (ebs-auto)**
 > Manage EBS of a single instance per AWS account.
 
-- **Advance Mode (ebs_auto & express combination)**
+- **Advance Mode (ebs_auto & express)**
 > Manage EBS of multiple instance from different AWS account.
 
 ### **STEP 2:** Set file permission 

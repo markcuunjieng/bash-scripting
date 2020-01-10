@@ -1,0 +1,47 @@
+#!/bin/bash
+
+APP_NAME=${APPLICATION}
+FUNCTION_NAME=${FUNCTION}
+
+compile() {
+    # Compile packages
+    DIR=`pwd`
+    ls -la ${APP_NAME}/codebase/app && echo "Current directory is "$DIR
+    cd ${APP_NAME}/codebase/app
+    block 2
+    echo "Compiling packages. . ."
+    block 2
+    #npm install aws-xray-sdk
+    npm update
+    block 2
+    echo "Compressing codebase. . ."
+    block 2
+    zip -r ${APP_NAME}-${TAG}.zip .
+    cp ${APP_NAME}-${TAG}.zip $DIR
+}
+
+unavailable() {
+    block 2
+    echo "[INFO] Lambda function is disabled. . ."
+    block 2
+}
+
+snyk() {
+    # Snyk Code Scanner
+    block 2
+    echo "Starting Snyk Scanner. . ."
+    block 2
+    npm install -g snyk && \
+    snyk auth 1234 && \ 
+    snyk monitor --project-name="${CI_PROJECT_NAMESPACE}/${CI_PROJECT_NAME}/codebase" --org=1234
+    snyk test || true
+}
+
+if [[ ! -z "$FUNCTION" ]]
+then 
+    compile
+    #snyk
+    exit 0
+else
+    unavailable
+fi

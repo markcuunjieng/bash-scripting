@@ -1,0 +1,70 @@
+image: ${CI_REGISTRY}/pipeline
+
+stages:
+  - build
+
+variables:
+  GIT_SSL_NO_VERIFY: "1"
+  ECR: "<AWS ECR>"
+  PERMISSION: DEVOPS
+
+#-----------------------#
+# B U I L D  &  P U S H #
+#-----------------------#
+
+.Build_And_Push: &build_push
+  script:
+  - echo "[INFO] Building CICD Pipeline Base Image for ${PLATFORM}"
+  - docker build --no-cache -t $CI_REGISTRY_IMAGE:${PLATFORM} -f ${PLATFORM} .
+  - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
+  - docker push $CI_REGISTRY_IMAGE:${PLATFORM}
+  - source cicd cred PROD
+  - eval `aws ecr get-login --no-include-email --region us-west-2`
+  - docker tag  $CI_REGISTRY_IMAGE:${PLATFORM} $ECR:${PLATFORM} && docker push $ECR:${PLATFORM}
+ 
+#-----------------#
+# S C A N N I N G #
+#-----------------#
+ 
+.Scan_Image: &snyk |
+     # STARING SNYK SCANNING. . .
+     snyk config set disableSuggestions=true
+     snyk auth b0b2bdac-ed4d-4798-8a9e-dee1362b81fb
+     snyk test --docker $CI_REGISTRY_IMAGE:${PLATFORM} 
+     snyk monitor --docker $CI_REGISTRY_IMAGE:${PLATFORM} --file=${PLATFORM}
+
+.Scan_Dockerfile: &hadolint
+  after_script:
+  - *snyk
+  - docker run --rm -i hadolint/hadolint < ${PLATFORM}
+  
+#---------------------#
+# D O C K E R F I L E #
+#---------------------#
+
+Build:Common:
+  stage: build
+  variables:
+    PLATFORM: backoffice
+  allow_failure: false
+  <<: *build_push
+  after_script:
+  - docker tag $CI_REGISTRY_IMAGE:${PLATFORM} $CI_REGISTRY_IMAGE:latest && docker push $CI_REGISTRY_IMAGE:latest
+  #<<: *hadolint
+  only:
+    changes:
+      - "common"
+      - scripts/*
+
+Build:Advance:
+  stage: build
+  variables:
+    PLATFORM: site
+  allow_failure: false
+  <<: *build_push
+  #<<: *hadolint
+  only:
+    changes:
+      - "advance"
+      - scripts/*
+      
