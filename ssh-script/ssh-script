@@ -1,0 +1,42 @@
+USER=root
+KEY="/Users/mark.cu/Documents/keys"
+#----------------------------------------------------
+# LIST OF REMOTE SERVERS
+#----------------------------------------------------
+servers=(
+"99.x.x.x BAMBOO $KEY/mykey.pem"
+"99.x.x.x ANSIBLE $KEY/mykey.pem"
+"99.x.x.x SERVICE-CRON $KEY/mykey.pem"
+"99.x.x.x GIT $KEY/mykey.pem"
+)
+
+#----------------------------------------------------
+# FUNCTION: DISPLAY ALL SERVER IN SELECTION MENU
+#----------------------------------------------------
+servers() {
+title="****SSH Script****
+Choose Server"
+prompt="Pick an option:"
+PS3="$prompt "
+
+echo "$title"
+for ct in "${!servers[@]}"
+	do
+	server_name[$ct]=$(echo ${servers[ct]} | awk -F " " '{printf "%s\n", $2}')
+	done
+	
+select opt in "${server_name[@]}" "Quit"
+do
+		case "$REPLY" in
+		([1-9]|1[0-9]|2[0-4] ) echo "Connecting to $opt"; sleep 2; r=$(($REPLY-1));con=$(echo $USER@$(echo ${servers[$r]} | awk -F " " '{printf "%s\n", $1}')); ssh $con -i $(echo ${servers[$r]} | awk -F " " '{printf "%s\n", $3}') || echo "FAIL: Could not connect to remote server";exit 0;;
+		$(( ${#server_name[@]}+1 )) ) echo "Goodbye!"; break;;
+		*) echo "Invalid option. Try another one.";continue;;
+		esac
+	
+done
+}
+
+#----------------------------------------------------
+# RUN FUNCTION
+#----------------------------------------------------
+servers
