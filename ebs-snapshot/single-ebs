@@ -1,0 +1,336 @@
+#!/bin/bash
+export PATH=$PATH:/usr/local/bin/:/usr/bin
+# Safety feature: exit script if error is returned, or if variables not set.
+# Exit if a pipeline results in an error.
+
+set -ue
+set -o pipefail
+
+#----------------------------------------------------
+# VARIABLES
+#----------------------------------------------------
+
+# GET INSTANCE
+instance_id=$1
+# SNAPSHHOT MINIMUM DAYS TO RETAIN BACKUPS
+retention_days=$2
+retention_date_in_seconds=$(date -u +%s --date "$retention_days days ago")
+retention_date_in_seconds=$((retention_date_in_seconds+60))
+# EMAIL TO/FROM
+email=$3
+from=$4
+# GET AWS REGION
+region=$(aws configure get region)
+# Get the volume ID
+volume_id=$(aws ec2 describe-volumes --region $region --filters Name=attachment.instance-id,Values=$instance_id --output=text --query 'Volumes[0].{VolumeIds:Attachments[0].VolumeId}')
+# VERIFY EXISTING INSTANCE
+chk=$(aws ec2 describe-instances --output text --query 'Reservations[*].Instances[*].InstanceId')
+# SET LOGGING OPTIONS
+logfile="/var/log/ebs-snapshot.log"
+logfile_max_lines="5000"
+# JUST A LINE
+line="========================================================="
+# SET OUTPUT FILE
+tmp="/tmp/output/OUTPUT*"
+# GET INSTANCE NAME
+get_instance_name=$(aws ec2 describe-instances --instance-id $instance_id --query 'Reservations[].Instances[].Tags[?Key==`Name`].Value' --output=text)	
+# REPLACE SPACE
+instance_name=${get_instance_name// /_}
+# OUTPUT FILE NAME
+output="$(echo OUTPUT-"${instance_name^^}"_"$(date -u +"%d-%m-%Y_%T")".txt)"
+
+#----------------------------------------------------
+# FUNCTION: REQUIRED TO RUN AS A ROOT
+#----------------------------------------------------
+if [[ $EUID -ne 0 ]]; then
+	echo "Please run this script as root" 1>&2
+	exit 1
+fi
+
+#----------------------------------------------------
+# FUNCTION: DELETE OUTPUT FILE 6HRS OF AGE
+#----------------------------------------------------
+del_tmp() {
+		echo $line;log;echo $line
+		cd /tmp/output
+		#echo "Cleaning-up Temporary output files..." && rm $tmp !$(output) >/dev/null 2>&1
+		echo "Cleaning-up Temporary output files..." && find /tmp/output -mmin +360 -type f -delete
+		sleep 2;echo "Done."
+}
+
+#----------------------------------------------------
+# FUNCTION: EMAIL OUTPUT FILE
+#----------------------------------------------------
+email() {
+		echo -e "${MESSAGE[0]}" | cat /tmp/output/${output} | mail -s "["$(date -u +%m-%d-%y)"] EBS Notification: "${instance_name^^} $email --append="FROM:$from"		
+}
+
+#----------------------------------------------------
+# FUNCTION: SCRIPT USAGE
+#----------------------------------------------------
+input_args() {	
+		if [ -z "$instance_id" ] || [ -z "$retention_days" ]; then
+			echo $line;log;echo $line;echo "No Arguments Supplied.";sleep 2
+			echo -e "\n------------------------------------------------------------------"
+			echo "[USAGE]: ./ebs_auto <instance-id> <days> <email-to> <from-sender>"
+			echo "------------------------------------------------------------------"
+			echo -e "Instance ID \t -\tSpecify AWS EC2 Instance ID"
+			echo -e "Days \t\t -\tAge of the Snapshot in Days to be deleted"
+			echo -e "Email \t\t -\tSend an email Notification"
+			echo -e "From \t\t -\tAny name will appear on email sender e.g EBS@testaccount.aws"
+			exit 0
+		fi	
+}
+	
+#----------------------------------------------------
+# FUNCTION: EDIT INSTANCE ID
+#----------------------------------------------------
+edit_instance(){
+		echo $line;log;echo $line;echo "Checking EC2 Instance ID"; sleep 3
+		
+		if [ -z "$instance_id" ]; then
+			echo "Instance ID is empty."
+			echo "Aborting..."; sleep 2; exit 0; email
+		fi
+		
+		if  ! echo "$chk" | grep -q "$instance_id" > /dev/null 2>&1; then
+			echo "Instance ID "$instance_id" is not exist."
+			echo "Aborting...";sleep 2;exit 0
+		fi
+		echo "Instance ID: "$instance_id
+		
+		if ! [[ "$retention_days" =~ ^[0-9]+$ ]]; then
+			echo "Invalid Days"
+		fi
+		
+		if [ -z "$email" ]; then
+			echo "Email is empty."
+			echo "Aborting..."; sleep 2; exit 0
+		fi	
+		
+		if [ -z "$from" ]; then
+            echo "From is empty."
+            echo "Aborting..."; sleep 2; exit 0
+        fi
+
+}
+
+#----------------------------------------------------
+# FUNCTION: DISPLAY INPUT DETAILS
+#----------------------------------------------------
+info() {
+		echo $line;log;echo $line;echo "Loading Details..";sleep 2
+		echo -e "Instance ID\t: \t"$instance_id
+		echo -e "Instance Name\t:\t"$instance_name
+		echo -e "Age in Days\t: \t"$retention_days
+		echo -e "Email To\t: \t"$email
+		echo -e "From Sender\t: \t"$from;sleep 2
+}
+
+#----------------------------------------------------
+# FUNCTION: CHECK AWS CONFIGURATION
+#----------------------------------------------------
+load_config() {
+		echo $line;log;echo $line;echo "Checking AWS Configuration";sleep 2
+		
+		if ! grep -q aws_access_key_id ~/.aws/config > /dev/null 2>&1; then			
+			if ! grep -q aws_access_key_id ~/.aws/credentials > /dev/null 2>&1; then
+				echo "AWS config not found or CLI is not configured. Please run \"aws configure\".";sleep 1
+				echo "Aborting...";sleep 2;exit 0
+				email
+			else
+				echo "Loading AWS Config...";sleep 2
+				echo -e "Default Region is ["$region"]";sleep 2;edit_instance
+			fi
+		fi
+}
+
+#----------------------------------------------------
+# FUNCTION: MESSAGE INFO
+#----------------------------------------------------
+msg() {
+        echo "Initializing EBS Snapshot Tool...";sleep 2;clear;echo "$line"
+        echo "|           EBS Snapshot Backup and Deletion         |";echo "$line"
+        echo "|                       b y                          |";echo "$line"
+        echo "|                     M a r k                        |";echo "$line";sleep 1
+}
+
+#----------------------------------------------------
+# FUNCTION: GET ALL INSTANCES
+#----------------------------------------------------
+instance(){
+		echo $line;log;echo $line;echo "Loading Instances on Region ["$region"]";sleep 2
+		
+		diplay_instance=$(aws ec2 describe-instances --query 'Reservations[].Instances[].[InstanceId,Tags[?Key==`Name`].Value[],State.Name]' --output text | sed 's/None$/None\n/' | sed '$!N;s/\n/ /')
+		echo -e "Instance ID\t\tStatus\tName\n$diplay_instance"
+		read -p "Enter Instance ID: " instance_id
+}
+
+#----------------------------------------------------
+# FUNCTION: SETUP LOGFILE AND REDIRECT stdout/stderr.
+#----------------------------------------------------
+log_setup() {
+		# Check if logfile exists and is writable.
+		mkdir -p /tmp/output
+		( [ -e "$logfile" ] || touch "$logfile" ) && [ ! -w "$logfile" ] && echo "ERROR: Cannot write to $logfile. Check permissions or sudo access." && exit 1
+		tmplog=$(tail -n $logfile_max_lines $logfile 2>/dev/null) && echo "${tmplog}" > $logfile
+		exec > >(tee -a $logfile /tmp/output/$output)
+		exec 2>&1
+}
+
+#----------------------------------------------------
+# FUNCTION: LOG AN EVENT
+#----------------------------------------------------
+log() {
+		echo "$(date -u +"[%m/%d/%Y-%r %Z] ")"
+}
+
+#----------------------------------------------------
+# FUNCTION: CHECK AWS CLI IF INSTALLED
+#----------------------------------------------------
+prerequisite_check() {
+        		
+		for i in aws mailutils; do
+		echo $line;log;echo $line;echo "Checking "\"${i^^}\"" Installation..";sleep 2
+		if $(type $i >/dev/null 2>&1); then
+				echo ${i^^} "found.";sleep 2
+		else
+				echo ${i^^} "is not found."
+				echo $line;log;echo $line;echo "In order to use this script," \"${i^^}\" "must be installed.";sleep 1
+				echo "Aborting...";sleep 2;exit 0
+		fi
+		done
+		load_config
+}
+
+#----------------------------------------------------
+# FUNCTION: CREATE SNAPSHOT VOLUME ON THE INSTANCE
+#----------------------------------------------------
+snapshot_volumes() {
+        # Get the attched device name to add to the description so we can easily tell which volume this is.
+        device_name=$(aws ec2 describe-volumes --region $region --filters Name=attachment.instance-id,Values=$instance_id --volume-ids $volume_id --output=text --query 'Volumes[0].{Devices:Attachments[0].Device}')
+        # Take a snapshot of the current volume, and capture the resulting snapshot ID
+		snapshot_description="$(aws ec2 describe-instances --instance-id $instance_id --query 'Reservations[].Instances[].Tags[?Key==`Name`].Value' --output=text)_$(date +%m%d%Y)"
+        # Create a Snapshot if fails will not delete old backups
+        if snapshot_id=$(aws ec2 create-snapshot --region $region --volume-id $volume_id --output=text --description "$snapshot_description" --query SnapshotId); then
+        echo $line;log;echo $line;echo "Creating Snapshot...";sleep 2
+        echo "New snapshot created: $snapshot_id"
+        # Add a "CreatedBy:AutomatedBackup" tag to the resulting snapshot.
+		# Why? Because we only want to purge snapshots taken by the script later, and not delete snapshots manually taken.
+        aws ec2 create-tags --region $region --resource $snapshot_id --tags Key=CreatedBy,Value=AutomatedBackup Key=Name,Value=AutomatedBackup_$snapshot_description
+		cleanup_snapshots
+		else
+		echo $line;log;echo $line;echo "Unable to create snapshot";sleep 2
+		fDATE=`date "+%B %e, %Y"`
+		fTIME=`date +"%r %Z"`
+
+MESSAGE=(
+"This is an automated message from your EBS Autosnapshot.
+Snapshot creation failed on Instance ID ${instance_id} volume ${fDATE} at ${fTIME}
+	
+-Automated EBS script.
+"
+)
+		
+		echo -e "${MESSAGE[0]}" | mail -s "["$(date -u +%m-%d-%y)"] EBS Failed: "${instance_name^^} $email --append="FROM:$from"
+		
+		exit 0
+		fi
+}
+
+#----------------------------------------------------
+# FUNCTION: CLEANUP ALL SNAPSHOT ASSOCIATED WITH THIS INSTANCE THAT ARE OLDER THAN $retention_days
+#----------------------------------------------------
+cleanup_snapshots() {
+        # Get Snapshot ID
+        #snapshot=$(aws ec2 describe-snapshots --region $region --output=text --filters "Name=volume-id,Values=$volume_id" "Name=tag:CreatedBy,Values=AutomatedBackup" --query Snapshots[].SnapshotId) 
+		
+		# Get Snapshot ID sort by StartTime
+		snapshot=$(aws ec2 describe-snapshots --region $region --output=text --filters "Name=volume-id,Values=$volume_id" "Name=tag:CreatedBy,Values=AutomatedBackup" --query 'Snapshots[*].[StartTime,SnapshotId]' | sort -rn | sed -e 's/^.*\t//')
+
+		echo $line;log;echo $line;echo "Retrieving Snapshots..";sleep 2;echo $snapshot; s=0; for aw in $snapshot; do s=$((s+1)) ; done; echo "Total Snapshot: "$s
+        
+        # Get Snapshot description
+        snapshot_description=$(aws ec2 describe-snapshots --filters "Name=volume-id,Values=$volume_id" "Name=tag:CreatedBy,Values=AutomatedBackup" --region $region --query Snapshots[].Description)
+		echo $line;log;echo $line;echo "Deleting snapshot older than "$retention_days" day";sleep 2
+		ct=0
+		del=0
+		ndel=0
+		args=()
+		
+		for i in $snapshot
+		do
+				
+			# Check age of snapshot in hour only 
+			#snapshot_date_hours=$(aws ec2 describe-snapshots --region $region --output=text --filters "Name=volume-id,Values=$volume_id" "Name=tag:CreatedBy,Values=AutomatedBackup" --query 'Snapshots['$ct'].{id:StartTime}' --output text | awk '{print substr($1,12); }' | awk -F "." '{printf "%s\n", $1}')
+
+			# Check age of snapshot (000-00-00)
+			#snapshot_date=$(aws ec2 describe-snapshots --region $region --output=text --filters "Name=volume-id,Values=$volume_id" "Name=tag:CreatedBy,Values=AutomatedBackup" --query 'Snapshots['$ct'].{id:StartTime}' --output text | awk -F "T" '{printf "%s\n", $1}')
+			
+			# Check age of snapshot (000-00-00T00:00:00)
+			snapshot_date=$(aws ec2 describe-snapshots --region $region --output=text --filters "Name=volume-id,Values=$volume_id" "Name=tag:CreatedBy,Values=AutomatedBackup" --query 'Snapshots['$ct'].{id:StartTime}' --output text | awk -F "." '{printf "%s\n", $1}')
+			# Convert date in age of seconds
+			snapshot_date_in_seconds=$(date "--date=$snapshot_date" -u +%s)
+			
+			# Verify days in seconds
+			get_today_in_sec=$(date -u +%-s)
+			snap_in_sec=$(date "--date=$snapshot_date" -u +%s)
+			check_age_in_sec=$((get_today_in_sec-snap_in_sec))
+			if [ "$check_age_in_sec" -ge "86400" ]; then
+				getdate=$(date -u +%-d)
+                snapdays=$(date "--date=$snapshot_date" -u +%-d)
+				age=$((getdate-snapdays))
+			else
+				age=0
+			fi
+			
+			# SIMUL DATES #
+			#echo "Snapshot_date_in_seconds: "$snapshot_date_in_seconds "snap_in_sec: "$snap_in_sec "Retention: "$retention_date_in_seconds
+			#echo "Count: "$ct "Retention: "$retention_date_in_seconds
+			#echo "Now: "$getdate "-" "Age: "$snapshot_date_in_seconds" = "$((getdate-snapshot_date_in_seconds))
+			################
+			
+			if (( $snapshot_date_in_seconds <= $retention_date_in_seconds )); then
+				args+=("$i")
+				echo -e "["$ct"] "$i "\t[Age] "$age"-day: Successfully deleted."
+				del=$((del+1))				
+			else			
+				echo -e "["$ct"] "$i "\t[Age] "$age"-day: Cannot be deleted."
+				ndel=$((ndel+1))
+			fi
+			ct=$((ct+1))
+		done	
+		
+		for deletion in "${args[@]}"; do
+			aws ec2 delete-snapshot --region $region --snapshot-id $deletion
+		done	
+		echo -e "Summary: "$del" Deleted, "$ndel" Cannot be deleted."
+
+		cDATE=`date "+%B %e, %Y"`
+		cTIME=`date +"%r %Z"`
+
+MESSAGE=(
+"This is an automated message from your EBS Autosnapshot.
+New snapshot ${snapshot_id} was created on ${cDATE} at ${cTIME}
+Your instance ${instance_id} volume has total of ${s} snapshot/s:
+${snapshot} 
+Summary: ${del} Deleted, ${ndel} Cannot be deleted.
+
+-Automated EBS script.
+"
+)
+
+		echo -e "${MESSAGE[0]}" | mail -s "["$(date -u +%m-%d-%y)"] EBS Notification: "${instance_name^^} $email --append="FROM:$from"
+}
+
+#----------------------------------------------------
+## EXECUTE FUNCTIONS ##
+#----------------------------------------------------
+clear
+input_args
+log_setup
+info
+prerequisite_check
+snapshot_volumes
+del_tmp
+#email

@@ -1,0 +1,79 @@
+#!/bin/bash
+
+# =========================================
+# SET VAR
+# =========================================
+retention=1
+email_to="marccuunjieng@gmail.com"
+
+# =========================================
+# MENU SELECTION
+# =========================================
+menu(){
+clear
+title="EBS Snapshot Management"
+prompt="Pick an option:"
+options=("HTG" "TABLE TIME" "ALL")
+
+echo "$title"
+PS3="$prompt "
+
+select opt in "${options[@]}" "Quit"
+	do 
+		case "$REPLY" in
+		1 ) echo "Connecting to $opt.."; sleep 2;htg; exit 0;;
+		2 ) echo "Connecting to $opt.."; sleep 2;tabletime; exit 0;;
+		3 ) echo "Connecting to $opt.."; sleep 2;all; exit 0;;
+		$(( ${#options[@]}+1 )) ) echo "Goodbye!"; break;;
+		*) echo "Invalid option. Try another one.";continue;;
+		esac
+	done
+
+}
+
+# Every 6am & 12nn Manila Time = 22pm & 4am UTC
+htg() {
+export AWS_DEFAULT_PROFILE="htg"
+from_htg="markcuunjieng@gmail.com"
+instance_on_htg=(
+"i-asdasd"
+"i-asdsada"
+"i-asdasd"
+"i-asdasd"
+)
+
+for instance in "${instance_on_htg[@]}"; do
+./ebs-auto $instance $retention $email_to $from_htg
+done
+}
+
+# Every 6am & 12nn AEST = 20pm & 1am UTC = 4am & 10am Manila Time
+tabletime() {
+export AWS_DEFAULT_PROFILE="tabletime"
+from_tabletime="marccuunjieng@gmail.com"
+instance_on_tabletime=(
+"i-sadasd"
+"i-asdasda"
+"i-asdasda"
+"i-asdasd"
+)
+
+for instance in "${instance_on_tabletime[@]}"; do
+./ebs-auto $instance $retention $email_to $from_tabletime
+done
+}
+
+all() {
+htg
+tabletime
+}
+# =========================================
+# RUN FUNCTIONS
+# =========================================
+
+# ENABLE THIS FOR INTERACTIVE USER
+#menu
+# ENABLE THIS FOR AWS HTG ACCOUNT
+#htg
+# ENABLE THIS FOR AWS TABLETIME ACCOUNT
+#tabletime
