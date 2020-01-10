@@ -1,0 +1,119 @@
+#!/bin/bash
+
+#set the path, this works for Ubuntu 14.04 and 16.04
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+
+###       MODIFY LINE BELOW       ###
+SERVICES=( 'nginx' 'apache2')
+EMAIL="fligno.mark@gmail.com"
+FROM="SERVICE@TEST-SERVER"
+NAME="Mark"
+### STOP EDITING BEYOND THIS LINE ### 
+
+line="========================================================="
+HOST=$(hostname)
+TDATE=`date -u "+%B %e, %Y"`
+TTIME=`date -u "+%H:%M:%S"`
+
+# SET LOGGING OPTIONS
+logfile="/var/log/services-status.log"
+logfile_max_lines="5000"
+# SET OUTPUT FILE
+tmp="/tmp/output/OUTPUT*"
+
+#----------------------------------------------------
+# FUNCTION: SETUP LOGFILE AND REDIRECT stdout/stderr.
+#----------------------------------------------------
+log_setup() {
+		# Check if logfile exists and is writable.
+		mkdir -p /tmp/output
+		( [ -e "$logfile" ] || touch "$logfile" ) && [ ! -w "$logfile" ] && echo "ERROR: Cannot write to $logfile. Check permissions or sudo access." && exit 1
+		tmplog=$(tail -n $logfile_max_lines $logfile 2>/dev/null) && echo "${tmplog}" > $logfile
+		exec > >(tee -a $logfile /tmp/output/$output)
+		exec 2>&1
+}
+
+#----------------------------------------------------
+# FUNCTION: LOG AN EVENT
+#----------------------------------------------------
+log() {
+		echo "$(date +"[%m/%d/%Y-%r %Z] ")"
+}
+
+#----------------------------------------------------
+# FUNCTION: DELETE OUTPUT FILE 6HRS OF AGE
+#----------------------------------------------------
+del_tmp() {
+		echo $line;log;echo $line
+		cd /tmp/output
+		echo "Cleaning-up Temporary services files..." && find /tmp/output -mmin +360 -type f -delete
+		sleep 2;echo "Done."
+}
+
+#----------------------------------------------------
+# FUNCTION: CHECK SERVICES
+#----------------------------------------------------
+check_service() {
+for i in "${SERVICES[@]}"; do
+MESSAGE=(
+"Dear ${NAME},
+This is an automated message from your server status script.
+The server ${HOST} was tested on ${TDATE} at ${TTIME} that the service ${i^^} is currently running and kicking.
+It appear that the service ${i^^} on ${HOST} is stable at this time. Please check the log below.
+
+-Server Status Script.
+
+LOG FILE:"
+"Dear ${NAME},
+This is an automated message from your server status script.
+The server ${HOST} was tested on ${TDATE} at ${TTIME} that the service ${i^^} is currently down.
+It appear that the service ${i^^} on ${HOST} is not available at this time. Please check the log below.
+
+-Server Status Script.
+
+LOG FILE:"
+"Dear ${NAME},
+This is an automated message from your server status script.
+The server ${HOST} was tested on ${TDATE} at ${TTIME} is returned an error or the service ${i^^} is not exist on ${HOST}.
+It appear that the service ${i^^} on ${HOST} is unavailable at this time. Please check the log below.
+
+-Server Status Script.
+
+LOG FILE:"
+)
+
+# OUTPUT FILE NAME
+output="$(echo OUTPUT-${i^^}_"$(date +"%d-%m-%Y_%T")".txt)"
+log_setup
+
+if service --status-all | grep -Fq $i; then
+
+	if (( $(ps -ef | grep -v grep | grep $i | wc -l) > 0 )); then
+		echo $line;log;echo $line
+		echo "The service ${i^^} is UP & RUNNING"
+		service $i status | grep "running"
+		subject="STATUS: ${i^^} is UP & RUNNING"
+		echo "${MESSAGE[0]}" | cat - /tmp/output/$output | mail -s "${subject}" $EMAIL --append="FROM:$FROM"
+	else
+		#service $i restart
+		echo "The service ${i^^} is DOWN"
+		service $i status | grep "down"
+		subject="ALERT: ${i^^} is DOWN"
+		echo "${MESSAGE[1]}" | cat - /tmp/output/$output | mail -s "${subject}" $EMAIL --append="FROM:$FROM"
+	fi 
+
+else
+	echo $line;log;echo $line
+	echo "The service ${i^^} is unavailable or not installed on this system"
+	service apache2 status | grep "not-found"
+	subject="CAUTION: ${i^^} service unavailable"
+	echo -e "${MESSAGE[2]}" | cat - /tmp/output/$output | mail -s "${subject}" $EMAIL --append="FROM:$FROM"
+fi
+
+sleep 2
+done
+}
+
+clear
+del_tmp
+check_service

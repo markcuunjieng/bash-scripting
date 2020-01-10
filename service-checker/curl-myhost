@@ -1,0 +1,6 @@
+ #!/bin/bash
+ 
+ # CHECK SERVER RESPONSE
+ for i in $(tail -n 16 /etc/hosts; do
+ curl -s --head $i | grep '200 OK'
+ done
