@@ -1,0 +1,57 @@
+#!/bin/bash
+
+loop(){
+title="Choose Server"
+prompt="Pick an option:"
+options=("Server1" "Server2" "Server3" "Server4" "ETC" )
+
+echo "$title"
+PS3="$prompt "
+
+select opt in "${options[@]}" "Quit"
+	do 
+		case "$REPLY" in
+		1 ) echo "Connecting to $opt.."; sleep 2;$opt;exit 0;;
+		2 ) echo "Connecting to $opt.."; sleep 2;$opt;exit 0;;
+		3 ) echo "Connecting to $opt.."; sleep 2;$opt;exit 0;;
+		4 ) echo "Connecting to $opt.."; sleep 2;$opt;exit 0;;
+		5 ) echo "Connecting to $opt.."; sleep 2;$opt;exit 0;;
+		$(( ${#options[@]}+1 )) ) echo "Goodbye!"; break;;
+		*) echo "Invalid option. Try another one.";continue;;
+		esac
+	done
+}
+
+Server1() {
+    instance="user@x.x.x.x" 
+    pem="mykey.pem"
+    ssh -i $pem $instance || echo "FAILED: Could not connect to remote server"
+	}
+
+Server2() {
+	instance="user@x.x.x.x"
+	pem="mykey.pem"
+	ssh -i $pem $instance || echo "FAILED: Could not connect to remote server"
+	}
+
+Server3() {
+	instance="user@x.x.x.x"
+    pem="myke.pem"
+	ssh -i $pem $instance || echo "FAILED: Could not connect to remote server"
+	}
+
+Server4() {
+        instance="user@x.x.x.x"
+	    pem="mykey.pem"
+		ssh -i $pem $instance -A || echo "FAILED: Could not connect to remote server"
+		}
+
+ETC() {
+	instance="etc" 
+	pem="etc"
+	ssh -i $pem $instance || echo "FAIL: Could not connect to remote server"
+	}
+
+### RUN FUNCTION ##
+clear
+loop

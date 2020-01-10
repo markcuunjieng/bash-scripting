@@ -1,7 +1,7 @@
 # SSH SCRIPT  
 
 ## Requirements
-- Linux Host with Bash Shell.
+- Linux Bash
 
 ## Features
 - List all server
@@ -9,7 +9,7 @@
 
 ## **Getting Started**
 ### **STEP 1:** Download the file
-- Download ssh-server
+- Download ssh-script
 
 ### **STEP 2:** Set file permission 
 `Run Command:`
